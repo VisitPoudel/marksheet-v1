@@ -3,22 +3,26 @@
 namespace App\Http\Controllers;
 
 use App\Models\Student;
+use App\Repositories\StudentRepositoryInterface;
 use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class StudentController extends Controller
 {
+
+    public $student_repository;
     /**
      * Create a new controller instance.
      *
      * @return void
      */
-    public function __construct()
+    public function __construct(StudentRepositoryInterface $studentRepository)
     {
-        //
+        $this->student_repository = $studentRepository;
     }
 
     /**
@@ -56,7 +60,7 @@ class StudentController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $students = Student::paginate(10);
+            $students = $this->student_repository->getModel()->paginate(10);
             return response()->json(['message' => 'Students List Fetched Successfully', 'data' => $students, 'status' => 200]);
         } catch (ValidationException $exception) {
             throw $exception;
@@ -72,17 +76,24 @@ class StudentController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        DB::beginTransaction();
+
         try {
             $attributes = $this->validateStudent($request);
 
-            $student = Student::create($attributes);
+            $student = $this->student_repository->create($attributes);
+
+            DB::commit();
 
             return response()->json(['message' => 'Student Record Added Successfully', 'data' => $student, 'status' => 201]);
         } catch (ValidationException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 422, 'message' => $exception->getMessage(), 'errors' => $exception->errors()], 422);
         } catch (ModelNotFoundException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 404, 'message' => $exception->getMessage()], 404);
         } catch (Exception $exception) {
+            DB::rollBack();
             return response()->json(['status' => 500, 'message' => $exception->getMessage()], 500);
         }
     }
@@ -95,18 +106,24 @@ class StudentController extends Controller
 
     public function update(Request $request, $student_id): JsonResponse
     {
+        DB::beginTransaction();
+
         try {
             $attributes = $this->validateStudent($request);
 
-            $student = Student::findOrFail($student_id);
+            $student = $this->student_repository->get($student_id);
 
-            $updated_student = $student->update($attributes);
-            return response()->json(['message' => 'Student Record Added Successfully', 'data' => $updated_student, 'status' => 201]);
+            $updated_student = $this->student_repository->update($attributes, $student);
+            DB::commit();
+            return response()->json(['message' => 'Student Record Updated Successfully', 'data' => $updated_student, 'status' => 201]);
         } catch (ValidationException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 422, 'message' => $exception->getMessage(), 'errors' => $exception->errors()], 422);
         } catch (ModelNotFoundException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 404, 'message' => $exception->getMessage()], 404);
         } catch (Exception $exception) {
+            DB::rollBack();
             return response()->json(['status' => 500, 'message' => $exception->getMessage()], 500);
         }
     }
@@ -119,15 +136,20 @@ class StudentController extends Controller
 
     public function delete($student_id): JsonResponse
     {
+        DB::beginTransaction();
         try {
-            $student = Student::findOrFail($student_id);
-            $deletedStudent = $student->delete();
+            $student = $this->student_repository->get($student_id);
+            $this->student_repository->destroy($student);
+            DB::commit();
             return response()->json(['message' => 'Student Record deleted Successfully', 'status' => 200]);
         } catch (ValidationException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 422, 'message' => $exception->getMessage(), 'errors' => $exception->errors()], 422);
         } catch (ModelNotFoundException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 404, 'message' => $exception->getMessage()], 404);
         } catch (Exception $exception) {
+            DB::rollBack();
             return response()->json(['status' => 500, 'message' => $exception->getMessage()], 500);
         }
     }

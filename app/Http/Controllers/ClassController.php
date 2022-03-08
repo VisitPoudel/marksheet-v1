@@ -8,13 +8,16 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use App\Repositories\ClassRepositoryInterface;
 
 class ClassController extends Controller
 {
 
-    public function __construct()
+    public $class_repository;
+
+    public function __construct(ClassRepositoryInterface $classRepository)
     {
-        //
+        $this->class_repository = $classRepository;
     }
 
     /**
@@ -46,7 +49,7 @@ class ClassController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $classes = ClassModel::paginate(10);
+            $classes = $this->class_repository->getModel()->paginate(10);
             return response()->json(['message' => 'Classes List Fetched Successfully', 'data' => $classes, 'status' => 200]);
         } catch (ValidationException $exception) {
             return response()->json(['status' => 422, 'message' => $exception->getMessage(), 'errors' => $exception->errors()], 422);
@@ -69,6 +72,7 @@ class ClassController extends Controller
             $attributes = $this->validateClass($request);
 
             $class = ClassModel::create($attributes);
+
 
             return response()->json(['message' => 'Class Record Added Successfully', 'data' => $class, 'status' => 201]);
         } catch (ValidationException $exception) {
