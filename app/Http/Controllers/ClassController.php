@@ -9,12 +9,18 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use App\Repositories\ClassRepositoryInterface;
+use Illuminate\Support\Facades\DB;
 
 class ClassController extends Controller
 {
 
     public $class_repository;
 
+    /**
+     * Create a new controller instance.
+     *
+     * @return void
+     */
     public function __construct(ClassRepositoryInterface $classRepository)
     {
         $this->class_repository = $classRepository;
@@ -68,18 +74,21 @@ class ClassController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        DB::beginTransaction();
         try {
             $attributes = $this->validateClass($request);
 
-            $class = ClassModel::create($attributes);
-
-
+            $class = $this->class_repository->create($attributes);
+            DB::commit();
             return response()->json(['message' => 'Class Record Added Successfully', 'data' => $class, 'status' => 201]);
         } catch (ValidationException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 422, 'message' => $exception->getMessage(), 'errors' => $exception->errors()], 422);
         } catch (ModelNotFoundException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 404, 'message' => $exception->getMessage()], 404);
         } catch (Exception $exception) {
+            DB::rollBack();
             return response()->json(['status' => 500, 'message' => $exception->getMessage()], 500);
         }
     }
@@ -92,18 +101,22 @@ class ClassController extends Controller
 
     public function update(Request $request, $class_id): JsonResponse
     {
+        DB::beginTransaction();
         try {
             $attributes = $this->validateClass($request);
 
-            $class = ClassModel::findOrFail($class_id);
-
-            $updatedClass = $class->update($attributes);
+            $class = $this->class_repository->get($class_id);
+            DB::commit();
+            $updatedClass = $this->class_repository->update($attributes, $class);
             return response()->json(['message' => 'Class Record updated Successfully', 'data' => $updatedClass, 'status' => 200]);
         } catch (ValidationException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 422, 'message' => $exception->getMessage(), 'errors' => $exception->errors()], 422);
         } catch (ModelNotFoundException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 404, 'message' => $exception->getMessage()], 404);
         } catch (Exception $exception) {
+            DB::rollBack();
             return response()->json(['status' => 500, 'message' => $exception->getMessage()], 500);
         }
     }
@@ -116,15 +129,20 @@ class ClassController extends Controller
 
     public function delete($class_id): JsonResponse
     {
+        DB::beginTransaction();
         try {
-            $class = ClassModel::findOrFail($class_id);
-            $class->delete();
+            $class = $this->class_repository->get($class_id);
+            $this->class_repository->destroy($class);
+            DB::commit();
             return response()->json(['message' => 'Class Record deleted Successfully', 'status' => 200]);
         } catch (ValidationException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 422, 'message' => $exception->getMessage(), 'errors' => $exception->errors()], 422);
         } catch (ModelNotFoundException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 404, 'message' => $exception->getMessage()], 404);
         } catch (Exception $exception) {
+            DB::rollBack();
             return response()->json(['status' => 500, 'message' => $exception->getMessage()], 500);
         }
     }
@@ -138,7 +156,7 @@ class ClassController extends Controller
     public function average($class_id): JsonResponse
     {
         try {
-            $class = ClassModel::findOrFail($class_id);
+            $class = $this->class_repository->get($class_id);
 
             $average = $class->marks()->avg('marks');
             $average = round($average, 2);

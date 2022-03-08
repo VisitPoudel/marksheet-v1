@@ -3,22 +3,26 @@
 namespace App\Http\Controllers;
 
 use App\Models\Subject;
+use App\Repositories\SubjectRepositoryInterface;
 use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class SubjectController extends Controller
 {
+    public $subject_repository;
+
     /**
      * Create a new controller instance.
      *
      * @return void
      */
-    public function __construct()
+    public function __construct(SubjectRepositoryInterface $subjectRepository)
     {
-        //
+        $this->subject_repository = $subjectRepository;
     }
 
     /**
@@ -45,7 +49,7 @@ class SubjectController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $subject = Subject::paginate(10);
+            $subject = $this->subject_repository->getModel()->paginate(10);
             return response()->json(['message' => 'Subjects List Fetched Successfully', 'data' => $subject, 'status' => 200]);
         } catch (ValidationException $exception) {
             throw $exception;
@@ -61,17 +65,22 @@ class SubjectController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        DB::beginTransaction();
+
         try {
             $attributes = $this->validateSubject($request);
 
-            $subject = Subject::create($attributes);
-
+            $subject = $this->subject_repository->create($attributes);
+            DB::commit();
             return response()->json(['message' => 'Subject Record Added Successfully', 'data' => $subject, 'status' => 201]);
         } catch (ValidationException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 422, 'message' => $exception->getMessage(), 'errors' => $exception->errors()], 422);
         } catch (ModelNotFoundException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 404, 'message' => $exception->getMessage()], 404);
         } catch (Exception $exception) {
+            DB::rollBack();
             return response()->json(['status' => 500, 'message' => $exception->getMessage()], 500);
         }
     }
@@ -84,18 +93,22 @@ class SubjectController extends Controller
 
     public function update(Request $request, $subject_id): JsonResponse
     {
+        DB::beginTransaction();
         try {
             $attributes = $this->validateSubject($request);
 
-            $subject = Subject::findOrFail($subject_id);
-
-            $updatedSubject = $subject->update($attributes);
+            $subject = $this->subject_repository->get($subject_id);
+            DB::commit();
+            $updatedSubject = $this->subject_repository->update($attributes, $subject);
             return response()->json(['message' => 'Subject Record Updated Successfully', 'data' => $updatedSubject, 'status' => 201]);
         } catch (ValidationException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 422, 'message' => $exception->getMessage(), 'errors' => $exception->errors()], 422);
         } catch (ModelNotFoundException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 404, 'message' => $exception->getMessage()], 404);
         } catch (Exception $exception) {
+            DB::rollBack();
             return response()->json(['status' => 500, 'message' => $exception->getMessage()], 500);
         }
     }
@@ -108,17 +121,21 @@ class SubjectController extends Controller
 
     public function delete($subject_id): JsonResponse
     {
+        DB::beginTransaction();
         try {
-            $subject = Subject::findOrFail($subject_id);
+            $subject = $this->subject_repository->get($subject_id);
 
-            $deletedSubject = $subject->delete();
-
+            $this->subject_repository->destroy($subject);
+            DB::commit();
             return response()->json(['message' => 'Subject Record deleted Successfully', 'status' => 201]);
         } catch (ValidationException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 422, 'message' => $exception->getMessage(), 'errors' => $exception->errors()], 422);
         } catch (ModelNotFoundException $exception) {
+            DB::rollBack();
             return response()->json(['status' => 404, 'message' => $exception->getMessage()], 404);
         } catch (Exception $exception) {
+            DB::rollBack();
             return response()->json(['status' => 500, 'message' => $exception->getMessage()], 500);
         }
     }

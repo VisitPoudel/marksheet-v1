@@ -15,6 +15,7 @@ class StudentController extends Controller
 {
 
     public $student_repository;
+
     /**
      * Create a new controller instance.
      *
